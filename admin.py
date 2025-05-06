@@ -162,8 +162,70 @@ def generate_admin_page():
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Административная панель</title>
-            <style>
-                /* ... стили ... */
+             <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background-color: #f5f5f5;
+                }}
+                h1, h2 {{
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                    table-layout: fixed;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                    word-wrap: break-word;
+                }}
+                th {{
+                    background-color: #f2f2f2;
+                    position: sticky;
+                    top: 0;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #f9f9f9;
+                }}
+                tr:hover {{
+                    background-color: #f1f1f1;
+                }}
+                .stats {{
+                    margin-top: 30px;
+                    padding: 15px;
+                    background-color: #f0f8ff;
+                    border-radius: 5px;
+                }}
+                .action-buttons form {{
+                    display: inline-block;
+                    margin-right: 5px;
+                }}
+                button {{
+                    padding: 5px 10px;
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                }}
+                button:hover {{
+                    background-color: #45a049;
+                }}
+                button[type="submit"] {{
+                    background-color: #f44336;
+                }}
+                button[type="submit"]:hover {{
+                    background-color: #d32f2f;
+                }}
+                .container {{
+                    max-width: 100%;
+                    overflow-x: auto;
+                }}
             </style>
         </head>
         <body>

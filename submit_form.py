@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import os
 import secrets
 import hashlib
-import html  # Для защиты от XSS
+import html
 
 def create_connection():
     try:
@@ -94,7 +94,6 @@ def generate_html_form(data, errors, is_logged_in=False, credentials=None):
         </form>
         """
 
-    # Экранируем значения перед вставкой в форму
     context = {
         'last_name': escape_html(data.get('last_name', '')),
         'first_name': escape_html(data.get('first_name', '')),
@@ -217,7 +216,6 @@ def generate_csrf_token():
     return secrets.token_hex(16)
 
 def validate_csrf_token(token):
-    # Здесь можно реализовать проверку токена из сессии или cookie
     return True  # Упрощённая реализация — заменить на реальную проверку по сессии
 
 def generate_credentials():

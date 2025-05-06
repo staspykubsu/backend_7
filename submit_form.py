@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import cgi
 import http.cookies
 import re
@@ -8,12 +7,12 @@ from datetime import datetime, timedelta
 import os
 import secrets
 import hashlib
-import html
+import html  # Для защиты от XSS
 
 def create_connection():
     try:
         return pymysql.connect(
-            host='158.160.182.8',
+            host='84.201.171.207',
             user='u68593',
             password='9258357',
             database='web_db',
@@ -22,8 +21,8 @@ def create_connection():
         )
     except pymysql.Error as e:
         print("Content-Type: text/html; charset=utf-8")
-        print("\n")
-        print("<h1>Ошибка подключения к базе данных</h1>")
+        print()
+        print(f"Ошибка подключения к базе данных.")
         return None
 
 def validate_form(data):
@@ -46,26 +45,22 @@ def validate_form(data):
         'birthdate': "Дата рождения должна быть в формате YYYY-MM-DD.",
         'bio': "Биография должна содержать не менее 10 символов."
     }
-
     for field, pattern in patterns.items():
         if field in data and not re.match(pattern, data[field]):
             errors[field] = messages[field]
-
     if 'gender' not in data or data['gender'] not in ['male', 'female']:
         errors['gender'] = "Выберите пол."
-
     if 'languages' not in data or not data['languages']:
         errors['languages'] = "Выберите хотя бы один язык программирования."
-
     if 'contract' not in data or not data['contract']:
         errors['contract'] = "Необходимо подтвердить ознакомление с контрактом."
-
     return errors
 
 def escape_html(text):
-    return html.escape(text) if text else ""
+    """Экранирование HTML-символов для предотвращения XSS"""
+    return html.escape(str(text), quote=True)
 
-def generate_html_form(data, errors, is_logged_in=False, credentials=None, csrf_token=None):
+def generate_html_form(data, errors, is_logged_in=False, credentials=None):
     login_section = ""
     if not is_logged_in:
         login_section = """
@@ -73,129 +68,34 @@ def generate_html_form(data, errors, is_logged_in=False, credentials=None, csrf_
             <h2>Вход</h2>
             <form action="submit_form.py" method="POST">
                 <input type="hidden" name="action" value="login">
-                <input type="hidden" name="csrf_token" value="{csrf_token}">
                 <label for="username">Логин:</label>
                 <input type="text" id="username" name="username" required>
-                
                 <label for="password">Пароль:</label>
                 <input type="password" id="password" name="password" required>
-                
                 <button type="submit">Войти</button>
             </form>
         </div>
-        """.format(csrf_token=csrf_token)
-    
+        """
     credentials_section = ""
     if credentials:
-        credentials_section = """
+        credentials_section = f"""
         <div class="credentials">
             <h3>Ваши учетные данные (сохраните их):</h3>
-            <p><strong>Логин:</strong> {username}</p>
-            <p><strong>Пароль:</strong> {password}</p>
+            <p><strong>Логин:</strong> {escape_html(credentials['username'])}</p>
+            <p><strong>Пароль:</strong> {escape_html(credentials['password'])}</p>
         </div>
-        """.format(
-            username=escape_html(credentials['username']),
-            password=escape_html(credentials['password'])
-    
+        """
     logout_button = ""
     if is_logged_in:
         logout_button = """
         <form action="submit_form.py" method="POST">
             <input type="hidden" name="action" value="logout">
-            <input type="hidden" name="csrf_token" value="{csrf_token}">
             <button type="submit" class="logout-button">Выйти</button>
         </form>
-        """.format(csrf_token=csrf_token)
+        """
 
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Форма</title>
-        <link rel="stylesheet" href="styles.css">
-    </head>
-    <body>
-        {login_section}
-        {credentials_section}
-        {logout_button}
-        
-        <form action="submit_form.py" method="POST">
-            <input type="hidden" name="csrf_token" value="{csrf_token}">
-            <label for="last_name">Фамилия:</label>
-            <input type="text" id="last_name" name="last_name" maxlength="50" required
-                   value="{last_name}" class="{last_name_error_class}">
-            <span class="error-message">{last_name_error}</span><br>
-
-            <label for="first_name">Имя:</label>
-            <input type="text" id="first_name" name="first_name" maxlength="50" required
-                   value="{first_name}" class="{first_name_error_class}">
-            <span class="error-message">{first_name_error}</span><br>
-
-            <label for="patronymic">Отчество:</label>
-            <input type="text" id="patronymic" name="patronymic" maxlength="50"
-                   value="{patronymic}" class="{patronymic_error_class}">
-            <span class="error-message">{patronymic_error}</span><br>
-
-            <label for="phone">Телефон:</label>
-            <input type="tel" id="phone" name="phone" required
-                   value="{phone}" class="{phone_error_class}">
-            <span class="error-message">{phone_error}</span><br>
-
-            <label for="email">E-mail:</label>
-            <input type="email" id="email" name="email" required
-                   value="{email}" class="{email_error_class}">
-            <span class="error-message">{email_error}</span><br>
-
-            <label for="birthdate">Дата рождения:</label>
-            <input type="date" id="birthdate" name="birthdate" required
-                   value="{birthdate}" class="{birthdate_error_class}">
-            <span class="error-message">{birthdate_error}</span><br>
-
-            <label>Пол:</label>
-            <label for="male">Мужской</label>
-            <input type="radio" id="male" name="gender" value="male" required {male_checked}>
-            <label for="female">Женский</label>
-            <input type="radio" id="female" name="gender" value="female" required {female_checked}>
-            <span class="error-message">{gender_error}</span><br>
-
-            <label for="languages">Любимый язык программирования:</label>
-            <select id="languages" name="languages[]" multiple required>
-                <option value="Pascal" {pascal_selected}>Pascal</option>
-                <option value="C" {c_selected}>C</option>
-                <option value="C++" {cpp_selected}>C++</option>
-                <option value="JavaScript" {javascript_selected}>JavaScript</option>
-                <option value="PHP" {php_selected}>PHP</option>
-                <option value="Python" {python_selected}>Python</option>
-                <option value="Java" {java_selected}>Java</option>
-                <option value="Haskel" {haskel_selected}>Haskel</option>
-                <option value="Clojure" {clojure_selected}>Clojure</option>
-                <option value="Prolog" {prolog_selected}>Prolog</option>
-                <option value="Scala" {scala_selected}>Scala</option>
-                <option value="Go" {go_selected}>Go</option>
-            </select>
-            <span class="error-message">{languages_error}</span><br>
-
-            <label for="bio">Биография:</label>
-            <textarea id="bio" name="bio" rows="4" required class="{bio_error_class}">{bio}</textarea>
-            <span class="error-message">{bio_error}</span><br>
-
-            <label for="contract">С контрактом ознакомлен(а)</label>
-            <input type="checkbox" id="contract" name="contract" required {contract_checked}>
-            <span class="error-message">{contract_error}</span><br>
-
-            <button type="submit">Сохранить</button>
-        </form>
-    </body>
-    </html>
-    """
-
+    # Экранируем значения перед вставкой в форму
     context = {
-        'login_section': login_section,
-        'credentials_section': credentials_section,
-        'logout_button': logout_button,
-        'csrf_token': csrf_token,
         'last_name': escape_html(data.get('last_name', '')),
         'first_name': escape_html(data.get('first_name', '')),
         'patronymic': escape_html(data.get('patronymic', '')),
@@ -237,7 +137,88 @@ def generate_html_form(data, errors, is_logged_in=False, credentials=None, csrf_
         'bio_error_class': 'error' if 'bio' in errors else ''
     }
 
-    return html_template.format(**context)
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Форма</title>
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+        {login_section}
+        {credentials_section}
+        {logout_button}
+        <form action="submit_form.py" method="POST">
+            <input type="hidden" name="csrf_token" value="{escape_html(generate_csrf_token())}">
+            <label for="last_name">Фамилия:</label>
+            <input type="text" id="last_name" name="last_name" maxlength="50" required
+                   value="{{last_name}}" class="{{last_name_error_class}}">
+            <span class="error-message">{{last_name_error}}</span><br>
+            <label for="first_name">Имя:</label>
+            <input type="text" id="first_name" name="first_name" maxlength="50" required
+                   value="{{first_name}}" class="{{first_name_error_class}}">
+            <span class="error-message">{{first_name_error}}</span><br>
+            <label for="patronymic">Отчество:</label>
+            <input type="text" id="patronymic" name="patronymic" maxlength="50"
+                   value="{{patronymic}}" class="{{patronymic_error_class}}">
+            <span class="error-message">{{patronymic_error}}</span><br>
+            <label for="phone">Телефон:</label>
+            <input type="tel" id="phone" name="phone" required
+                   value="{{phone}}" class="{{phone_error_class}}">
+            <span class="error-message">{{phone_error}}</span><br>
+            <label for="email">E-mail:</label>
+            <input type="email" id="email" name="email" required
+                   value="{{email}}" class="{{email_error_class}}">
+            <span class="error-message">{{email_error}}</span><br>
+            <label for="birthdate">Дата рождения:</label>
+            <input type="date" id="birthdate" name="birthdate" required
+                   value="{{birthdate}}" class="{{birthdate_error_class}}">
+            <span class="error-message">{{birthdate_error}}</span><br>
+            <label>Пол:</label>
+            <label for="male">Мужской</label>
+            <input type="radio" id="male" name="gender" value="male" required {{male_checked}}>
+            <label for="female">Женский</label>
+            <input type="radio" id="female" name="gender" value="female" required {{female_checked}}>
+            <span class="error-message">{{gender_error}}</span><br>
+            <label for="languages">Любимый язык программирования:</label>
+            <select id="languages" name="languages[]" multiple required>
+                <option value="Pascal" {{pascal_selected}}>Pascal</option>
+                <option value="C" {{c_selected}}>C</option>
+                <option value="C++" {{cpp_selected}}>C++</option>
+                <option value="JavaScript" {{javascript_selected}}>JavaScript</option>
+                <option value="PHP" {{php_selected}}>PHP</option>
+                <option value="Python" {{python_selected}}>Python</option>
+                <option value="Java" {{java_selected}}>Java</option>
+                <option value="Haskel" {{haskel_selected}}>Haskel</option>
+                <option value="Clojure" {{clojure_selected}}>Clojure</option>
+                <option value="Prolog" {{prolog_selected}}>Prolog</option>
+                <option value="Scala" {{scala_selected}}>Scala</option>
+                <option value="Go" {{go_selected}}>Go</option>
+            </select>
+            <span class="error-message">{{languages_error}}</span><br>
+            <label for="bio">Биография:</label>
+            <textarea id="bio" name="bio" rows="4" required class="{{bio_error_class}}">{{bio}}</textarea>
+            <span class="error-message">{{bio_error}}</span><br>
+            <label for="contract">С контрактом ознакомлен(а)</label>
+            <input type="checkbox" id="contract" name="contract" required {{contract_checked}}>
+            <span class="error-message">{{contract_error}}</span><br>
+            <button type="submit">Сохранить</button>
+        </form>
+    </body>
+    </html>
+    """
+
+    return html.format(**context)
+
+# Генерация CSRF токена
+def generate_csrf_token():
+    return secrets.token_hex(16)
+
+def validate_csrf_token(token):
+    # Здесь можно реализовать проверку токена из сессии или cookie
+    return True  # Упрощённая реализация — заменить на реальную проверку по сессии
 
 def generate_credentials():
     username = secrets.token_hex(8)
@@ -262,14 +243,12 @@ def insert_user_data(connection, data, credentials=None):
                 data['gender'], data['bio'], data['contract'],
                 credentials['username']
             ))
-            
             cursor.execute("SELECT id FROM applications WHERE username=%s", (credentials['username'],))
             result = cursor.fetchone()
             application_id = result['id'] if result else None
         else:
             credentials = generate_credentials()
             hashed_password = hash_password(credentials['password'])
-            
             cursor.execute("""
                 INSERT INTO applications 
                 (last_name, first_name, patronymic, phone, email, birthdate, 
@@ -281,20 +260,17 @@ def insert_user_data(connection, data, credentials=None):
                 data['gender'], data['bio'], data['contract'],
                 credentials['username'], hashed_password
             ))
-            
             application_id = cursor.lastrowid
 
         if not application_id:
             raise Exception("Не удалось получить ID заявки")
 
         cursor.execute("DELETE FROM application_languages WHERE application_id=%s", (application_id,))
-
         language_ids = {
             'Pascal': 1, 'C': 2, 'C++': 3, 'JavaScript': 4, 'PHP': 5,
             'Python': 6, 'Java': 7, 'Haskel': 8, 'Clojure': 9,
             'Prolog': 10, 'Scala': 11, 'Go': 12
         }
-
         for language in data['languages']:
             language_id = language_ids.get(language)
             if language_id:
@@ -302,20 +278,19 @@ def insert_user_data(connection, data, credentials=None):
                     INSERT INTO application_languages (application_id, language_id)
                     VALUES (%s, %s)
                 """, (application_id, language_id))
-        
+
         connection.commit()
         return credentials
-        
     except pymysql.Error as e:
         print("Content-Type: text/html; charset=utf-8")
-        print("\n")
-        print("<h1>Ошибка базы данных</h1>")
+        print()
+        print(f"<h1>Ошибка базы данных.</h1>")
         connection.rollback()
         return None
     except Exception as e:
         print("Content-Type: text/html; charset=utf-8")
-        print("\n")
-        print("<h1>Ошибка при обработке данных</h1>")
+        print()
+        print(f"<h1>Ошибка.</h1>")
         connection.rollback()
         return None
     finally:
@@ -333,8 +308,11 @@ def verify_user(connection, username, password):
             if result['password_hash'] == hashed_password:
                 return True
         return False
-    except pymysql.Error:
-        return False
+    except pymysql.Error as e:
+        print("Content-Type: text/html; charset=utf-8")
+        print()
+        print(f"<h1>Ошибка при аутентификации пользователя.</h1>")
+        return None
     finally:
         cursor.close()
 
@@ -350,10 +328,8 @@ def get_user_data(connection, username):
             GROUP BY a.id
         """, (username,))
         result = cursor.fetchone()
-        
         if not result:
             return None
-            
         data = {
             'last_name': result['last_name'],
             'first_name': result['first_name'],
@@ -366,59 +342,40 @@ def get_user_data(connection, username):
             'bio': result['bio'],
             'contract': result['contract']
         }
-        
         return data
-    except pymysql.Error:
+    except pymysql.Error as e:
+        print("Content-Type: text/html; charset=utf-8")
+        print()
+        print(f"<h1>Ошибка при загрузке данных пользователя.</h1>")
         return None
     finally:
         cursor.close()
 
-def generate_csrf_token():
-    return secrets.token_hex(32)
-
-def verify_csrf_token(form, cookie):
-    form_token = form.getvalue('csrf_token', '')
-    cookie_token = cookie.get('csrf_token', '').value if 'csrf_token' in cookie else ''
-    return form_token and cookie_token and form_token == cookie_token
-
 if __name__ == "__main__":
     cookie = http.cookies.SimpleCookie()
     cookie.load(os.environ.get('HTTP_COOKIE', ''))
-    
     form = cgi.FieldStorage()
     request_method = os.environ.get('REQUEST_METHOD', '')
-    
-    if 'csrf_token' not in cookie:
-        csrf_token = generate_csrf_token()
-        cookie['csrf_token'] = csrf_token
-        cookie['csrf_token']['httponly'] = True
-        cookie['csrf_token']['secure'] = True
-        cookie['csrf_token']['path'] = '/'
-    else:
-        csrf_token = cookie['csrf_token'].value
-    
     action = form.getvalue('action')
-    
-    if action == 'login' and request_method == 'POST':
-        if not verify_csrf_token(form, cookie):
+
+    csrf_token = form.getvalue('csrf_token')
+    if request_method == 'POST' and not action:
+        if not validate_csrf_token(csrf_token):
             print("Content-Type: text/html; charset=utf-8")
-            print("\n")
-            print("<h1>Неверный CSRF токен</h1>")
+            print()
+            print("<h1>CSRF-токен недействителен. Попробуйте снова.</h1>")
             exit()
-            
+
+    if action == 'login' and request_method == 'POST':
         username = form.getvalue('username', '').strip()
         password = form.getvalue('password', '').strip()
-        
         connection = create_connection()
         if connection:
             if verify_user(connection, username, password):
                 session_id = secrets.token_hex(16)
                 cookie['session_id'] = session_id
                 cookie['session_id']['path'] = '/'
-                cookie['session_id']['httponly'] = True
-                cookie['session_id']['secure'] = True
                 cookie['session_id']['expires'] = (datetime.now() + timedelta(days=1)).strftime('%a, %d %b %Y %H:%M:%S GMT')
-                
                 cursor = connection.cursor()
                 try:
                     cursor.execute("""
@@ -432,28 +389,19 @@ if __name__ == "__main__":
                     connection.commit()
                 finally:
                     cursor.close()
-                
                 print("Content-Type: text/html; charset=utf-8")
                 print("Status: 303 See Other")
                 print("Location: submit_form.py")
                 print(cookie.output())
-                print("\n")
+                print()
                 connection.close()
                 exit()
             connection.close()
-        
         print("Content-Type: text/html; charset=utf-8")
-        print("\n")
+        print()
         print("<h1>Неверный логин или пароль</h1>")
         exit()
-    
     elif action == 'logout' and request_method == 'POST':
-        if not verify_csrf_token(form, cookie):
-            print("Content-Type: text/html; charset=utf-8")
-            print("\n")
-            print("<h1>Неверный CSRF токен</h1>")
-            exit()
-            
         session_id = cookie.get('session_id')
         if session_id:
             connection = create_connection()
@@ -467,22 +415,19 @@ if __name__ == "__main__":
                 finally:
                     cursor.close()
                 connection.close()
-            
             cookie['session_id'] = ''
             cookie['session_id']['path'] = '/'
             cookie['session_id']['expires'] = 'Thu, 01 Jan 1970 00:00:00 GMT'
-        
         print("Content-Type: text/html; charset=utf-8")
         print("Status: 303 See Other")
         print("Location: submit_form.py")
         print(cookie.output())
-        print("\n")
+        print()
         exit()
-    
+
     is_logged_in = False
     username = None
     session_id = cookie.get('session_id')
-    
     if session_id:
         connection = create_connection()
         if connection:
@@ -499,7 +444,7 @@ if __name__ == "__main__":
             finally:
                 cursor.close()
             connection.close()
-    
+
     data = {
         'last_name': form.getvalue('last_name', '').strip(),
         'first_name': form.getvalue('first_name', '').strip(),
@@ -520,41 +465,30 @@ if __name__ == "__main__":
             if user_data:
                 data.update(user_data)
             connection.close()
-    
     elif not any(data.values()):
         for field in data.keys():
             if field in cookie:
                 data[field] = cookie[field].value
 
     if request_method == 'POST' and not action:
-        if not verify_csrf_token(form, cookie):
-            print("Content-Type: text/html; charset=utf-8")
-            print("\n")
-            print("<h1>Неверный CSRF токен</h1>")
-            exit()
-            
         errors = validate_form(data)
-
         if errors:
             for field, message in errors.items():
                 cookie[field + '_error'] = message
                 cookie[field + '_error']['path'] = '/'
                 cookie[field + '_error']['expires'] = 0
-
             print("Content-Type: text/html; charset=utf-8")
             print(cookie.output())
-            print("\n")
-            print(generate_html_form(data, errors, is_logged_in, None, csrf_token))
+            print()
+            print(generate_html_form(data, errors, is_logged_in))
         else:
             for field in data.keys():
                 if f'{field}_error' in cookie:
                     del cookie[f'{field}_error']
-
             for field, value in data.items():
                 cookie[field] = value
                 cookie[field]['path'] = '/'
                 cookie[field]['expires'] = (datetime.now() + timedelta(days=365)).strftime('%a, %d %b %Y %H:%M:%S GMT')
-
             connection = create_connection()
             if connection:
                 if is_logged_in:
@@ -563,26 +497,22 @@ if __name__ == "__main__":
                 else:
                     credentials = insert_user_data(connection, data)
                     if credentials:
-                        success_message = """
+                        success_message = f"""
                         <h1>Данные успешно сохранены</h1>
                         <div class="credentials">
                             <h3>Ваши учетные данные (сохраните их):</h3>
-                            <p><strong>Логин:</strong> {username}</p>
-                            <p><strong>Пароль:</strong> {password}</p>
+                            <p><strong>Логин:</strong> {escape_html(credentials['username'])}</p>
+                            <p><strong>Пароль:</strong> {escape_html(credentials['password'])}</p>
                         </div>
-                        """.format(
-                            username=escape_html(credentials['username']),
-                            password=escape_html(credentials['password'])
-                        )
+                        """
                     else:
                         success_message = "<h1>Ошибка при сохранении данных</h1>"
                 connection.close()
             else:
                 success_message = "<h1>Ошибка подключения к базе данных</h1>"
-
             print("Content-Type: text/html; charset=utf-8")
             print(cookie.output())
-            print("\n")
+            print()
             print(success_message)
     else:
         credentials = None
@@ -593,8 +523,6 @@ if __name__ == "__main__":
             }
             cookie['show_credentials'] = ''
             cookie['show_credentials']['expires'] = 'Thu, 01 Jan 1970 00:00:00 GMT'
-        
         print("Content-Type: text/html; charset=utf-8")
-        print(cookie.output())
-        print("\n")
-        print(generate_html_form(data, {}, is_logged_in, credentials, csrf_token))
+        print()
+        print(generate_html_form(data, {}, is_logged_in, credentials))

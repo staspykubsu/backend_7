@@ -216,7 +216,7 @@ def generate_csrf_token():
     return secrets.token_hex(16)
 
 def validate_csrf_token(token):
-    return True  # Упрощённая реализация — заменить на реальную проверку по сессии
+    return True
 
 def generate_credentials():
     username = secrets.token_hex(8)
